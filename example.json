@@ -1,0 +1,47 @@
+[
+  {
+    "id": "APR-408",
+    "kind": "approval.granted",
+    "at": "2026-11-12T08:14:00Z",
+    "actor": "helpdesk-agent",
+    "action": "ticket.close",
+    "target": "ticket-1043",
+    "request_id": "R-408"
+  },
+  {
+    "id": "AUD-408",
+    "kind": "tool.completed",
+    "at": "2026-11-12T08:14:36Z",
+    "actor": "helpdesk-agent",
+    "action": "ticket.close",
+    "target": "ticket-1042",
+    "request_id": "R-408"
+  },
+  {
+    "id": "APR-409",
+    "kind": "approval.granted",
+    "at": "2026-11-12T08:19:00Z",
+    "actor": "helpdesk-agent",
+    "action": "ticket.close",
+    "target": "ticket-1105",
+    "request_id": "R-409"
+  },
+  {
+    "id": "AUD-409",
+    "kind": "tool.completed",
+    "at": "2026-11-12T08:19:36Z",
+    "actor": "helpdesk-agent",
+    "action": "ticket.close",
+    "target": "ticket-1105",
+    "request_id": "R-409"
+  },
+  {
+    "id": "AUD-410",
+    "kind": "tool.denied",
+    "at": "2026-11-12T08:26:36Z",
+    "actor": "helpdesk-agent",
+    "action": "ticket.close",
+    "target": "ticket-1098",
+    "request_id": "R-410"
+  }
+]

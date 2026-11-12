@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signal Desk · AI incident response</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body><header><strong>Signal Desk</strong><span>AI incident response</span></header>
+<main><section class="top"><div><h1>Incident queue</h1><p id="counts" role="status">Loading records…</p></div><div class="actions"><button id="refresh">Refresh</button><button id="sample">Load sample events</button><label class="button primary">Import events<input type="file" accept=".json,application/json" id="import"></label></div></section>
+<p id="notice" role="status"></p><div class="layout"><aside><label for="filter">Disposition</label><select id="filter"><option>All cases</option><option>Open</option><option>Investigating</option><option>Escalated</option><option>Closed</option></select><nav id="queue" aria-label="Cases"></nav></aside>
+<article><p id="empty">Import an audit event batch or load the sample to start an investigation.</p><div id="detail" hidden>
+<div class="casehead"><span id="caseid"></span><span id="state"></span></div><h2 id="finding"></h2><p id="target"></p>
+<h3>Evidence timeline</h3><div id="events"></div>
+<form id="review"><label for="note">Analyst summary</label><p class="hint">Select an evidence ID to cite it in your summary.</p><textarea id="note" maxlength="4000" rows="4" required></textarea>
+<button id="triage" type="button">Check ATLAS mapping</button><div id="suggestion" aria-live="polite"></div>
+<div class="fields"><label>Disposition<select id="status"><option>Open</option><option>Investigating</option><option>Escalated</option><option>Closed</option></select></label><label>AML.T0053 review<select id="mapping"><option>Pending review</option><option>Accepted</option><option>Rejected</option><option>Insufficient evidence</option></select></label></div>
+<div class="actions"><button class="primary">Save review</button><button type="button" id="export">Export saved report</button></div></form><details><summary>Review history</summary><div id="history"></div></details>
+</div></article></div></main></body></html>
+
