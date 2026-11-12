@@ -47,9 +47,14 @@ class CorrelationTests(unittest.TestCase):
             review(self.db,edit)
         self.assertEqual(len(snapshot(self.db)["reviews"]),1)
 
-    def test_suggestion_needs_cited_record(self):
+    def test_suggestion_uses_real_evidence_even_with_empty_notes(self):
         ingest(self.db,self.sample)
-        self.assertIsNone(suggest(self.db,"AUD-408","An agent closed a ticket.")["technique"])
+        finding = suggest(self.db,"AUD-408","")
+        self.assertEqual(finding["technique"],"AML.T0053")
+        for detail in ("ticket-1042","ticket-1043","[APR-408]","[AUD-408]"):
+            self.assertIn(detail, finding["sentence"])
         self.assertIsNone(suggest(self.db,"AUD-410","Unauthorized [AUD-410]")["technique"])
         self.assertEqual(suggest(self.db,"AUD-408","Wrong ticket [AUD-408].")["technique"],"AML.T0053")
+        ingest(self.db,[dict(self.approval,id="late-evidence",target=self.done["target"])])
+        self.assertIsNone(suggest(self.db,"AUD-408","Unauthorized [AUD-408]")["technique"])
 

@@ -1,5 +1,4 @@
 """Local incident correlation and analyst decisions."""
-import re
 import json
 import sqlite3
 from contextlib import closing
@@ -25,6 +24,9 @@ def connect(path):
         CREATE INDEX IF NOT EXISTS request_events ON events(request_id, at);
         CREATE TABLE IF NOT EXISTS wazuh_alerts (
           id TEXT PRIMARY KEY REFERENCES events(id), payload TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS platform_alerts (
+          id TEXT PRIMARY KEY REFERENCES events(id), source TEXT NOT NULL, payload TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS incidents (
           id TEXT PRIMARY KEY REFERENCES events(id), finding TEXT NOT NULL,
@@ -84,7 +86,7 @@ def correlate(conn, request):
     records = conn.execute("SELECT * FROM events WHERE request_id=? ORDER BY at,id", (request,)).fetchall()
     approvals = [r for r in records if r["kind"] == "approval.granted"]
     for event in records:
-        if event["kind"] in {"approval.granted", "wazuh.alert"}:
+        if event["kind"] not in {"tool.completed", "tool.denied"}:
             continue
         valid = any(a["at"] <= event["at"] and all(a[k] == event[k] for k in ("actor","action","target")) for a in approvals)
         if event["kind"] == "tool.denied":
@@ -104,9 +106,14 @@ def snapshot(db):
         events = [dict(r) for r in conn.execute("SELECT * FROM events ORDER BY at,id")]
         cases = [dict(r) for r in conn.execute("SELECT i.*, e.at,e.request_id,e.target FROM incidents i JOIN events e ON e.id=i.id ORDER BY e.at DESC,e.id")]
         alerts = {r["id"]: json.loads(r["payload"]) for r in conn.execute("SELECT * FROM wazuh_alerts")}
+        platforms = {r["id"]: r for r in conn.execute("SELECT * FROM platform_alerts")}
         for case in cases:
             if case["id"] in alerts:
                 case["wazuh"] = alerts[case["id"]]
+            elif case["id"] in platforms:
+                row = platforms[case["id"]]
+                case["raw_json"] = row["payload"]
+                case[row["source"]] = json.loads(row["payload"])
         reviews = [dict(r) for r in conn.execute("SELECT * FROM reviews ORDER BY id")]
     return {"events": events, "cases": cases, "reviews": reviews}
 
@@ -120,8 +127,9 @@ def review(db, data):
     if not isinstance(note, str) or not 1 <= len(note.strip()) <= 4000:
         raise ValueError("Enter an analyst note (1–4000 characters)")
     with closing(connect(db)) as conn, conn:
-        wazuh = conn.execute("SELECT 1 FROM wazuh_alerts WHERE id=?", (data["id"],)).fetchone()
-        if data.get("mapping") not in (("Not applicable",) if wazuh else tuple(MAPPINGS)):
+        record = conn.execute("SELECT kind FROM events WHERE id=?", (data["id"],)).fetchone()
+        external = record and record["kind"].endswith(".alert")
+        if data.get("mapping") not in (("Not applicable",) if external else tuple(MAPPINGS)):
             raise ValueError("Invalid mapping for this case")
         result = conn.execute("UPDATE incidents SET status=?, mapping=?, note=?, revision=revision+1 WHERE id=? AND revision=?",
                               (data["status"], data["mapping"], note.strip(), data["id"], data["revision"]))
@@ -134,16 +142,43 @@ def review(db, data):
 def suggest(db, case_id, summary):
     if not isinstance(case_id, str) or not isinstance(summary, str) or len(summary) > 4000:
         raise ValueError("Invalid case or summary")
-    state = snapshot(db)
-    case = next((c for c in state["cases"] if c["id"] == case_id), None)
+    with closing(connect(db)) as conn, conn:
+        conn.execute("BEGIN")
+        case = conn.execute("SELECT e.*, i.finding FROM incidents i JOIN events e ON e.id=i.id WHERE i.id=?", (case_id,)).fetchone()
+        approvals = [] if not case else conn.execute("SELECT * FROM events WHERE request_id=? AND kind='approval.granted' ORDER BY at,id", (case["request_id"],)).fetchall()
+        alert = None
+        if case and case["kind"] == "suricata.alert":
+            alert = json.loads(conn.execute("SELECT payload FROM platform_alerts WHERE id=?", (case_id,)).fetchone()[0])
     if not case:
         raise ValueError("Unknown case")
-    if "wazuh" in case:
-        return {"technique": None, "reason": "Review the Wazuh rule and its reported ATT&CK mappings."}
-    for sentence in re.split(r"(?<=[.!?])\s+|\n+", summary.strip()):
-        cited = re.findall(r"\[([^\[\]]+)\]", sentence)
-        if case["finding"] == "Completed without matching approval" and case_id in cited and re.search(r"\b(mismatch|unapproved|unauthori[sz]ed|wrong|different|without)\b", sentence, re.I):
-            return {"technique": TECHNIQUE, "name": "AI Agent Tool Invocation", "sentence": sentence,
-                    "evidence": case_id, "reason": "A cited completion has no matching approval. Check whether the evidence supports intentional misuse."}
-    return {"technique": None, "reason": "Insufficient evidence. Cite the completion as [" + case_id + "] and describe the approval discrepancy if one exists."}
+    result = {"technique": None, "evidence": case_id}
+    if case["kind"].endswith(".alert"):
+        source = case["kind"].split(".")[0].capitalize()
+        result["sentence"] = f"{source} recorded {case['finding']} for {case['target']} [{case_id}]."
+        if alert:
+            result["sentence"] = (f"Suricata signature {alert['alert']['signature_id']} matched traffic from "
+                                  f"{alert['src_ip']} to {alert['dest_ip']}. Sensor action: "
+                                  f"{alert['alert'].get('action','unspecified')} [{case_id}].")
+        result["reason"] = ("Check the source rule and endpoint activity at the alert time." if source == "Wazuh"
+                            else "Review the flow endpoints, signature and sensor action against expected traffic.")
+    elif case["kind"] == "tool.denied":
+        result["sentence"] = f"The request to perform {case['action']} on {case['target']} was denied [{case_id}]."
+        result["reason"] = "Check related completion records before recording any impact."
+    else:
+        text = [f"{case['actor']} completed {case['action']} on {case['target']} [{case_id}]."]
+        for approval in approvals:
+            differences = [f"{k} was {approval[k]}" for k in ("actor","action","target") if approval[k] != case[k]]
+            if approval["at"] > case["at"]:
+                differences.append("approval came after completion")
+            detail = ", ".join(differences) or "scope and time match"
+            text.append(f"Approval [{approval['id']}]: {detail}.")
+        if not approvals:
+            text.append("No approval was recorded for this request.")
+        result["sentence"] = " ".join(text)
+        if case["finding"] == "Approval reconciled":
+            result["reason"] = "A matching approval is now on record. Review its delivery time before closing."
+        else:
+            result.update(technique=TECHNIQUE, name="AI Agent Tool Invocation",
+                          reason="Possible ATLAS mapping. Verify approval-log completeness and user intent before accepting.")
+    return result
 

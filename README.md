@@ -14,7 +14,7 @@ Open http://127.0.0.1:8780. Choose **Load sample events** to import five synthet
 
 > The agent closed ticket-1042 without matching approval [AUD-408]. The approval covers ticket-1043 [APR-408].
 
-Choose **Check ATLAS mapping**, decide whether to accept the suggested technique, set a disposition, then save and export the report. The included second completion has a matching approval and raises no case. A denied tool request creates a separate reviewable case.
+Choose **AI investigations → Analyze evidence** to compare the completion and its approvals. You can start with an empty note. **Add finding to summary** inserts the cited records into your draft. Review the suggested technique, set a disposition, then save and export the report. The second sample completion has a matching approval and raises no case. A denied tool request creates a separate reviewable case.
 
 ## React interface
 
@@ -67,7 +67,11 @@ Local integrations can POST an alert or array to `/api/wazuh`. An exporter can a
 
 ### Deployment
 
-Single-user, loopback-only service for trusted local processes. A live Wazuh feed requires a manager-side source and transport to the local importer. The AI triage assistant uses a deterministic rule for [AI Agent Tool Invocation](https://atlas.mitre.org/techniques/AML.T0053). It checks whether a sentence cites the relevant completion and mentions a discrepancy. The suggestion requires analyst review.
+Single-user, loopback-only service for trusted local processes. Live feeds require an exporter or transport from the relevant source. The local assistant compares recorded activity and approvals to support analyst review of [AI Agent Tool Invocation](https://atlas.mitre.org/techniques/AML.T0053).
+
+### Suricata investigations
+
+Open **Suricata → Import Suricata alerts** to import an EVE JSON object, array, or newline-delimited file. The local API accepts these at `POST /api/suricata` as a JSON object, array, or JSON string containing lines. Each request supports up to 2,000 records and 1 MiB. Only EVE alert records become cases. Signal Desk reports the count of skipped non-alert records and deduplicates identical alert content. The network signature, source and destination addresses, and original evidence are available for review and export. [Suricata EVE format](https://docs.suricata.io/en/suricata-8.0.2/output/eve/eve-json-format.html)
 
 ```shell
 python -m unittest -v

@@ -9,6 +9,7 @@ export default function Investigation({incident, events, history, draft, edit, d
   const [result, setResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const values = draft || incident;
+  const external = incident.wazuh || incident.suricata;
   const stale = draft && draft.revision !== incident.revision;
   const suggestion = result?.summary === values.note && result.revision === incident.revision ? result.data : null;
 
@@ -29,6 +30,9 @@ export default function Investigation({incident, events, history, draft, edit, d
     <h2>{incident.finding}</h2>
     <div className="case-facts"><span>Target <b>{incident.target}</b></span>{incident.wazuh ? <span>Source alert <code>{incident.wazuh.id}</code></span> : <span>Request <code>{incident.request_id}</code></span>}</div>
     {incident.wazuh && <WazuhEvidence alert={incident.wazuh}/>}
+    {incident.suricata && <section><h3>Suricata network alert</h3>
+      <p>{incident.suricata.src_ip} → {incident.suricata.dest_ip} · Signature {incident.suricata.alert.signature_id}</p>
+      <details><summary>Original EVE record</summary><pre className="raw-log">{incident.raw_json}</pre></details></section>}
     <section><h3>Evidence timeline <small>{events.length}</small></h3>
       <ol id="events" className="timeline">{events.map(e => <li key={e.id}>
         <div className="event-line"><strong>{eventName(e.kind)}</strong>
@@ -43,13 +47,15 @@ export default function Investigation({incident, events, history, draft, edit, d
       <textarea id="note" disabled={busy} required maxLength={4000} rows="4" value={values.note}
         placeholder="Describe the finding and cite the relevant evidence IDs."
         onChange={e => edit({note:e.target.value})}/>
-      {!incident.wazuh && <button className="secondary" type="button" onClick={checkMapping} disabled={checking || !values.note.trim()}>{checking ? "Checking…" : "Check ATLAS mapping"}</button>}
+      <button className="secondary" type="button" onClick={checkMapping} disabled={checking || busy}>{checking ? "Analyzing…" : "Analyze evidence"}</button>
       {suggestion && <div className="suggestion" aria-live="polite">
-        {suggestion.technique && <><a href="https://atlas.mitre.org/techniques/AML.T0053" target="_blank" rel="noreferrer">{suggestion.technique} · {suggestion.name}</a><blockquote>{suggestion.sentence}</blockquote></>}
+        {suggestion.technique && <a href="https://atlas.mitre.org/techniques/AML.T0053" target="_blank" rel="noreferrer">{suggestion.technique} · {suggestion.name}</a>}
+        <blockquote>{suggestion.sentence}</blockquote>
         <p>{suggestion.reason}</p>
+        {suggestion.sentence && !values.note.includes(suggestion.sentence) && <button type="button" className="text-button" disabled={busy || (values.note.length+suggestion.sentence.length+2>4000)} onClick={()=>edit({note:[values.note,suggestion.sentence].filter(Boolean).join("\n\n")})}>Add finding to summary</button>}
       </div>}
       <div className="form-grid"><label>Disposition<select id="status" disabled={busy} value={values.status} onChange={e=>edit({status:e.target.value})}>{statuses.map(s=><option key={s}>{s}</option>)}</select></label>
-        {!incident.wazuh && <label>AML.T0053 review<select id="mapping" disabled={busy} value={values.mapping} onChange={e=>edit({mapping:e.target.value})}>{mappings.map(s=><option key={s}>{s}</option>)}</select></label>}</div>
+        {!external && <label>AML.T0053 review<select id="mapping" disabled={busy} value={values.mapping} onChange={e=>edit({mapping:e.target.value})}>{mappings.map(s=><option key={s}>{s}</option>)}</select></label>}</div>
       {stale && <p role="alert">The saved case changed while you were editing. <button className="text-button" type="button" onClick={discard}>Use latest saved review</button></p>}
       <div className="controls"><button className="primary" disabled={busy || stale || !values.note.trim()}>Save review</button>
         <button className="secondary" type="button" onClick={()=>downloadReport(incident, events, history)}>Export saved report</button></div>

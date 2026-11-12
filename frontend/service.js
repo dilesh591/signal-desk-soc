@@ -16,7 +16,7 @@ export async function request(path, body) {
 export function downloadReport(incident, events, history) {
   const lines = [
     "# Incident " + incident.id, incident.finding,
-    "Disposition: " + incident.status, ...(incident.wazuh ? ["## Wazuh alert",JSON.stringify(incident.wazuh,null,2)] : ["AML.T0053 review: " + incident.mapping]),
+    "Disposition: " + incident.status, ...(incident.wazuh || incident.suricata ? [incident.wazuh?"## Wazuh alert":"## Suricata alert",incident.raw_json || JSON.stringify(incident.wazuh,null,2)] : ["AML.T0053 review: " + incident.mapping]),
     "## Analyst summary", incident.note || "(No review saved)", "## Evidence",
     ...events.map(e => [e.id,e.at,e.kind,e.actor,e.action,e.target,e.request_id].join(" | ")),
     "## Review history", ...history.map(r => [r.at,r.status,r.mapping,r.note].join(" | ")),

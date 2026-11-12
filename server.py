@@ -8,11 +8,13 @@ from urllib.parse import urlsplit
 
 from store import connect, ingest, review, snapshot, suggest
 from wazuh import ingest_wazuh
+from suricata import ingest_suricata
 
 ROOT = Path(__file__).parent.resolve()
 ASSETS = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
           "/style.css": ("style.css", "text/css"), "/example.json": ("example.json", "application/json"),
-          "/wazuh-example.json": ("wazuh-example.json", "application/json")}
+          "/wazuh-example.json": ("wazuh-example.json", "application/json"),
+          "/suricata-example.json": ("suricata-example.json", "application/json")}
 
 
 def handler(db):
@@ -56,6 +58,8 @@ def handler(db):
                 data = json.loads(self.rfile.read(length))
                 if self.path == "/api/wazuh":
                     return self.reply(200, ingest_wazuh(db, data))
+                if self.path == "/api/suricata":
+                    return self.reply(200, ingest_suricata(db, data))
                 if self.path == "/api/events":
                     return self.reply(200, ingest(db, data))
                 if self.path == "/api/review":

@@ -1,0 +1,8 @@
+{
+  "timestamp":"2026-11-12T10:42:15.000000+0000",
+  "event_type":"alert",
+  "src_ip":"192.0.2.24","src_port":49152,
+  "dest_ip":"198.51.100.12","dest_port":443,"proto":"TCP",
+  "flow_id":7813341,
+  "alert":{"signature_id":1000001,"signature":"Sample policy alert on outbound TLS traffic","category":"Local policy","severity":3,"action":"allowed"}
+}

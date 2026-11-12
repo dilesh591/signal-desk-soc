@@ -27,6 +27,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .signal b { width: 4px; height: 12px; border-radius: 3px; background: #86e3bd; }
 .signal b:nth-child(2) { height: 23px; } .signal b:nth-child(3) { height: 17px; } .signal b:nth-child(4) { height: 8px; }
 .mast nav { align-self: stretch; gap: 20px; }
+.mast nav { flex-wrap: wrap; }
 .mast nav button { border: 0; border-bottom: 3px solid transparent; padding: 3px 4px 0; background: transparent; color: #c2d3d2; font-size: 14px; font-weight: 600; }
 .mast nav button[aria-current=page] { color: white; border-color: #86e3bd; }
 .local { margin-left: auto; color: #d3e2de; font-size: 13px; }
