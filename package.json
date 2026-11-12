@@ -1,0 +1,15 @@
+{
+  "name": "signal-desk-soc",
+  "private": true,
+  "scripts": {
+    "build": "esbuild frontend/main.jsx --bundle --minify --jsx=automatic --legal-comments=inline --outfile=app.js"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  },
+  "packageManager": "pnpm@11.25.0"
+}

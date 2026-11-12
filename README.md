@@ -16,6 +16,19 @@ Open http://127.0.0.1:8780. Choose **Load sample events** to import five synthet
 
 Choose **Check ATLAS mapping**, decide whether to accept the suggested technique, set a disposition, then save and export the report. The included second completion has a matching approval and raises no case. A denied tool request creates a separate reviewable case.
 
+## React interface
+
+The React interface includes a searchable case queue and an audit log for all events, including approved actions that raised no incident. Select an event ID in the timeline to cite it. Unsaved case edits survive switching cases or views within the open page.
+
+The server ships with the compiled frontend. To edit it, install Node.js 24 and the pnpm version listed in `package.json`, edit the JSX under `frontend/`, then run:
+
+```shell
+pnpm install --frozen-lockfile
+pnpm run build
+```
+
+Refresh the browser to load the new bundle.
+
 ## Connect an application
 
 Send a JSON array to `POST /api/events` on the same machine, import a JSON file in the UI, or run:
