@@ -1,5 +1,6 @@
 """Local incident correlation and analyst decisions."""
 import re
+import json
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
@@ -22,6 +23,9 @@ def connect(path):
           action TEXT, target TEXT, request_id TEXT
         );
         CREATE INDEX IF NOT EXISTS request_events ON events(request_id, at);
+        CREATE TABLE IF NOT EXISTS wazuh_alerts (
+          id TEXT PRIMARY KEY REFERENCES events(id), payload TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS incidents (
           id TEXT PRIMARY KEY REFERENCES events(id), finding TEXT NOT NULL,
           status TEXT DEFAULT 'Open', mapping TEXT DEFAULT 'Pending review',
@@ -80,7 +84,7 @@ def correlate(conn, request):
     records = conn.execute("SELECT * FROM events WHERE request_id=? ORDER BY at,id", (request,)).fetchall()
     approvals = [r for r in records if r["kind"] == "approval.granted"]
     for event in records:
-        if event["kind"] == "approval.granted":
+        if event["kind"] in {"approval.granted", "wazuh.alert"}:
             continue
         valid = any(a["at"] <= event["at"] and all(a[k] == event[k] for k in ("actor","action","target")) for a in approvals)
         if event["kind"] == "tool.denied":
@@ -99,6 +103,10 @@ def snapshot(db):
         conn.execute("BEGIN")
         events = [dict(r) for r in conn.execute("SELECT * FROM events ORDER BY at,id")]
         cases = [dict(r) for r in conn.execute("SELECT i.*, e.at,e.request_id,e.target FROM incidents i JOIN events e ON e.id=i.id ORDER BY e.at DESC,e.id")]
+        alerts = {r["id"]: json.loads(r["payload"]) for r in conn.execute("SELECT * FROM wazuh_alerts")}
+        for case in cases:
+            if case["id"] in alerts:
+                case["wazuh"] = alerts[case["id"]]
         reviews = [dict(r) for r in conn.execute("SELECT * FROM reviews ORDER BY id")]
     return {"events": events, "cases": cases, "reviews": reviews}
 
@@ -106,12 +114,15 @@ def snapshot(db):
 def review(db, data):
     if not isinstance(data, dict) or not isinstance(data.get("id"), str) or type(data.get("revision")) is not int:
         raise ValueError("Invalid case or revision")
-    if data.get("status") not in tuple(STATES) or data.get("mapping") not in tuple(MAPPINGS):
+    if data.get("status") not in tuple(STATES):
         raise ValueError("Choose a valid disposition and mapping")
     note = data.get("note")
     if not isinstance(note, str) or not 1 <= len(note.strip()) <= 4000:
         raise ValueError("Enter an analyst note (1–4000 characters)")
     with closing(connect(db)) as conn, conn:
+        wazuh = conn.execute("SELECT 1 FROM wazuh_alerts WHERE id=?", (data["id"],)).fetchone()
+        if data.get("mapping") not in (("Not applicable",) if wazuh else tuple(MAPPINGS)):
+            raise ValueError("Invalid mapping for this case")
         result = conn.execute("UPDATE incidents SET status=?, mapping=?, note=?, revision=revision+1 WHERE id=? AND revision=?",
                               (data["status"], data["mapping"], note.strip(), data["id"], data["revision"]))
         if result.rowcount != 1:
@@ -127,6 +138,8 @@ def suggest(db, case_id, summary):
     case = next((c for c in state["cases"] if c["id"] == case_id), None)
     if not case:
         raise ValueError("Unknown case")
+    if "wazuh" in case:
+        return {"technique": None, "reason": "Review the Wazuh rule and its reported ATT&CK mappings."}
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", summary.strip()):
         cited = re.findall(r"\[([^\[\]]+)\]", sentence)
         if case["finding"] == "Completed without matching approval" and case_id in cited and re.search(r"\b(mismatch|unapproved|unauthori[sz]ed|wrong|different|without)\b", sentence, re.I):

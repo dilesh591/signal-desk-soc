@@ -27,7 +27,8 @@ export default function Investigation({incident, events, history, draft, edit, d
   return <article className="panel detail">
     <div className="case-meta"><code>{incident.id}</code><Status value={incident.status}/></div>
     <h2>{incident.finding}</h2>
-    <div className="case-facts"><span>Target <b>{incident.target}</b></span><span>Request <code>{incident.request_id}</code></span></div>
+    <div className="case-facts"><span>Target <b>{incident.target}</b></span>{incident.wazuh ? <span>Source alert <code>{incident.wazuh.id}</code></span> : <span>Request <code>{incident.request_id}</code></span>}</div>
+    {incident.wazuh && <WazuhEvidence alert={incident.wazuh}/>}
     <section><h3>Evidence timeline <small>{events.length}</small></h3>
       <ol id="events" className="timeline">{events.map(e => <li key={e.id}>
         <div className="event-line"><strong>{eventName(e.kind)}</strong>
@@ -42,13 +43,13 @@ export default function Investigation({incident, events, history, draft, edit, d
       <textarea id="note" disabled={busy} required maxLength={4000} rows="4" value={values.note}
         placeholder="Describe the finding and cite the relevant evidence IDs."
         onChange={e => edit({note:e.target.value})}/>
-      <button className="secondary" type="button" onClick={checkMapping} disabled={checking || !values.note.trim()}>{checking ? "Checking…" : "Check ATLAS mapping"}</button>
+      {!incident.wazuh && <button className="secondary" type="button" onClick={checkMapping} disabled={checking || !values.note.trim()}>{checking ? "Checking…" : "Check ATLAS mapping"}</button>}
       {suggestion && <div className="suggestion" aria-live="polite">
         {suggestion.technique && <><a href="https://atlas.mitre.org/techniques/AML.T0053" target="_blank" rel="noreferrer">{suggestion.technique} · {suggestion.name}</a><blockquote>{suggestion.sentence}</blockquote></>}
         <p>{suggestion.reason}</p>
       </div>}
       <div className="form-grid"><label>Disposition<select id="status" disabled={busy} value={values.status} onChange={e=>edit({status:e.target.value})}>{statuses.map(s=><option key={s}>{s}</option>)}</select></label>
-        <label>AML.T0053 review<select id="mapping" disabled={busy} value={values.mapping} onChange={e=>edit({mapping:e.target.value})}>{mappings.map(s=><option key={s}>{s}</option>)}</select></label></div>
+        {!incident.wazuh && <label>AML.T0053 review<select id="mapping" disabled={busy} value={values.mapping} onChange={e=>edit({mapping:e.target.value})}>{mappings.map(s=><option key={s}>{s}</option>)}</select></label>}</div>
       {stale && <p role="alert">The saved case changed while you were editing. <button className="text-button" type="button" onClick={discard}>Use latest saved review</button></p>}
       <div className="controls"><button className="primary" disabled={busy || stale || !values.note.trim()}>Save review</button>
         <button className="secondary" type="button" onClick={()=>downloadReport(incident, events, history)}>Export saved report</button></div>
@@ -57,5 +58,16 @@ export default function Investigation({incident, events, history, draft, edit, d
       {history.length ? history.map(r => <div className="history" key={r.id}><strong>{r.status} · {r.mapping}</strong><time>{timestamp(r.at)}</time><p>{r.note}</p></div>) : <p className="quiet">No reviews saved yet.</p>}
     </details>
   </article>;
+}
+
+function WazuhEvidence({alert}) {
+  const techniques = alert.rule.mitre?.id;
+  return <section><h3>Wazuh rule {alert.rule.id}</h3>
+    <div className="case-facts"><span>Level <b>{alert.rule.level}</b></span><span>Manager <b>{alert.manager.name}</b></span><span>Agent ID <code>{alert.agent.id}</code></span></div>
+    {typeof alert.location==="string" && <p>Log source <code>{alert.location}</code></p>}
+    {Array.isArray(techniques) && <p>Rule ATT&amp;CK mapping <code>{techniques.filter(t=>typeof t==="string").join(", ")}</code></p>}
+    {typeof alert.full_log==="string" && <pre className="raw-log">{alert.full_log}</pre>}
+    <details><summary>Original alert JSON</summary><pre className="raw-log">{JSON.stringify(alert,null,2)}</pre></details>
+  </section>;
 }
 

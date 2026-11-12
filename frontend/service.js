@@ -16,7 +16,7 @@ export async function request(path, body) {
 export function downloadReport(incident, events, history) {
   const lines = [
     "# Incident " + incident.id, incident.finding,
-    "Disposition: " + incident.status, "AML.T0053 review: " + incident.mapping,
+    "Disposition: " + incident.status, ...(incident.wazuh ? ["## Wazuh alert",JSON.stringify(incident.wazuh,null,2)] : ["AML.T0053 review: " + incident.mapping]),
     "## Analyst summary", incident.note || "(No review saved)", "## Evidence",
     ...events.map(e => [e.id,e.at,e.kind,e.actor,e.action,e.target,e.request_id].join(" | ")),
     "## Review history", ...history.map(r => [r.at,r.status,r.mapping,r.note].join(" | ")),
@@ -37,6 +37,6 @@ export function timestamp(value) {
 }
 
 export function eventName(kind) {
-  return {"approval.granted":"Approval granted","tool.completed":"Tool completed","tool.denied":"Tool denied"}[kind] || kind;
+  return {"wazuh.alert":"Wazuh alert","approval.granted":"Approval granted","tool.completed":"Tool completed","tool.denied":"Tool denied"}[kind] || kind;
 }
 

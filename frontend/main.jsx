@@ -22,6 +22,7 @@ function App() {
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(true);
   const upload = useRef();
+  const wazuhUpload = useRef();
   const latest = useRef(0);
   async function refresh() {
     const attempt = ++latest.current;
@@ -34,15 +35,17 @@ function App() {
   }
   useEffect(()=>{perform(refresh);},[]);
   const visible = data.cases.filter(c =>
+    (view !== "Wazuh" || c.wazuh) &&
     (filter === "All dispositions" || c.status === filter) &&
-    [c.id,c.target,c.finding,c.request_id].join(" ").toLowerCase().includes(query.trim().toLowerCase())
+    [c.id,c.target,c.finding,c.request_id,c.wazuh?.id,c.wazuh?.rule.id,c.wazuh?.manager.name].join(" ").toLowerCase().includes(query.trim().toLowerCase())
   );
   const active = visible.find(c=>c.id===selected) || visible[0];
+  const scopedCases = view === "Wazuh" ? data.cases.filter(c=>c.wazuh) : data.cases;
   const stats = [
-    ["Open cases",data.cases.filter(c=>c.status==="Open").length,"blue"],
-    ["Investigating",data.cases.filter(c=>c.status==="Investigating").length,"teal"],
-    ["Escalated",data.cases.filter(c=>c.status==="Escalated").length,"amber"],
-    ["Audit events",data.events.length,"violet"],
+    ["Open cases",scopedCases.filter(c=>c.status==="Open").length,"blue"],
+    ["Investigating",scopedCases.filter(c=>c.status==="Investigating").length,"teal"],
+    ["Escalated",scopedCases.filter(c=>c.status==="Escalated").length,"amber"],
+    [view==="Wazuh"?"Wazuh alerts":"Audit events",view==="Wazuh"?scopedCases.length:data.events.length,"violet"],
   ];
   function edit(patch) {
     setDrafts(old => new Map(old).set(active.id, {...(old.get(active.id) || active), ...patch}));
@@ -66,16 +69,20 @@ function App() {
       discard(id); await refresh(); setMessage("Analyst review saved.");
     });
   }
-  async function ingest(batch) {
-    const result=await request("/api/events",batch);
+  async function ingest(batch, path="/api/events") {
+    const result=await request(path,batch);
     await refresh(); setMessage(result.inserted+" events imported · "+result.duplicates+" already present.");
   }
   return <div className="shell"><header className="mast"><div className="wrap mast-inner"><div className="brand"><i aria-hidden="true" className="signal"><b/><b/><b/><b/></i>Signal Desk</div>
-    <nav aria-label="Workspace">{["Incidents","Audit log"].map(v=><button key={v} aria-current={view===v?"page":undefined} onClick={()=>setView(v)}>{v}</button>)}</nav>
+    <nav aria-label="Workspace">{["Incidents","Wazuh","Audit log"].map(v=><button key={v} aria-current={view===v?"page":undefined} onClick={()=>{setView(v);setQuery("");setFilter("All dispositions");}}>{v}</button>)}</nav>
     <span className="local">Local workspace</span></div></header>
-    <main className="wrap"><div className="pagehead"><h1>{view==="Incidents"?"Incident queue":"Audit log"}</h1>
+    <main className="wrap"><div className="pagehead"><h1>{view==="Incidents"?"Incident queue":view==="Wazuh"?"Wazuh investigations":"Audit log"}</h1>
       <div className="controls"><button className="secondary" disabled={busy} onClick={()=>perform(async()=>{await refresh();setMessage("Records refreshed.");})}>Refresh</button>
-      <button className="primary" disabled={busy} onClick={()=>upload.current.click()}>Import events</button>
+      <button className="primary" disabled={busy} onClick={()=>view==="Wazuh"?wazuhUpload.current.click():upload.current.click()}>{view==="Wazuh"?"Import Wazuh alerts":"Import events"}</button>
+      <input type="file" ref={wazuhUpload} hidden accept=".json,.jsonl,.ndjson,application/json" aria-label="Import Wazuh alert file" onChange={e=>{
+        const file=e.target.files[0];e.target.value="";
+        if(file) perform(async()=>ingest(await file.text(),"/api/wazuh"));
+      }}/>
       <input type="file" ref={upload} hidden accept=".json,application/json" aria-label="Import event file" onChange={e=>{
         const file=e.target.files[0];e.target.value="";if(file) perform(async()=>ingest(JSON.parse(await file.text())));
       }}/></div></div>
@@ -85,12 +92,13 @@ function App() {
       <input type="search" aria-label="Search cases" placeholder="Search cases or targets" value={query} onChange={e=>setQuery(e.target.value)}/>
       <select aria-label="Filter by disposition" value={filter} onChange={e=>setFilter(e.target.value)}>{["All dispositions",...statuses].map(s=><option key={s}>{s}</option>)}</select>
       <div className="case-list">{visible.map(c=><button className="case" key={c.id} aria-current={active?.id===c.id} onClick={()=>setSelected(c.id)}>
-        <span><code>{c.id}</code><Status value={c.status}/></span><strong>{c.target}</strong><em>{c.finding}</em></button>)}
+        <span><code>{c.wazuh ? "Rule " + c.wazuh.rule.id + " · Level " + c.wazuh.rule.level : c.id}</code><Status value={c.status}/></span><strong>{c.target}</strong><em>{c.finding}</em></button>)}
         {!visible.length && <p className="quiet">{busy?"Loading…":"No matching cases."}</p>}</div>
-      <button className="text-button sample" disabled={busy} onClick={()=>perform(async()=>ingest(await request("/example.json")))}>Load sample events</button>
+      {view==="Wazuh" ? <button className="text-button sample" disabled={busy} onClick={()=>perform(async()=>ingest(await request("/wazuh-example.json"),"/api/wazuh"))}>Load sample Wazuh alert</button> :
+        <button className="text-button sample" disabled={busy} onClick={()=>perform(async()=>ingest(await request("/example.json")))}>Load sample events</button>}
       </aside>{active ? <Investigation key={active.id} incident={active} draft={drafts.get(active.id)} edit={edit} discard={()=>discard(active.id)} save={save} busy={busy} reportError={setMessage}
-        events={data.events.filter(e=>e.request_id===active.request_id)} history={data.reviews.filter(r=>r.incident===active.id)}/> :
-      <div className="panel empty"><div className="scope-mark" aria-hidden="true">◎</div><h2>{busy?"Loading incidents":data.cases.length?"No cases match your filters":"No incidents to review"}</h2><p>{data.cases.length?"Change the search or disposition to find a case.":"Import approval and tool events to start monitoring AI actions."}</p></div>}</div>}
+        events={data.events.filter(e=>active.wazuh?e.id===active.id:e.kind!=="wazuh.alert" && e.request_id===active.request_id)} history={data.reviews.filter(r=>r.incident===active.id)}/> :
+      <div className="panel empty"><div className="scope-mark" aria-hidden="true">◎</div><h2>{busy?"Loading incidents":"No matching incidents"}</h2><p>{view==="Wazuh"?"Import alerts.json from a Wazuh manager, or load the sample alert.":"Import audit events or change your filters to find a case."}</p></div>}</div>}
     </main></div>;
 }
 createRoot(document.getElementById("root")).render(<App/>);

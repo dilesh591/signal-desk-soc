@@ -55,7 +55,19 @@ Send only actions your application's policy requires approval for. Normalize sou
 
 ## Scope
 
-Single-user, loopback-only service for trusted local processes. Local JSON ingestion is operational. The first triage assistant uses a deterministic rule for [AI Agent Tool Invocation](https://atlas.mitre.org/techniques/AML.T0053). It checks whether a sentence cites the relevant completion and mentions a discrepancy. The suggestion requires analyst review. Live Wazuh ingestion, semantic ranking across techniques, named analyst accounts and shared deployment are future integrations.
+### Wazuh investigations
+
+Open **Wazuh** and choose **Import Wazuh alerts**. Import a JSON alert, an array, or newline-delimited records from the manager's `/var/ossec/logs/alerts/alerts.json`. The browser accepts up to 1 MiB per HTTP request and 2,000 alerts per batch. **Load sample Wazuh alert** imports a synthetic file-change alert into your selected database. Inspect the rule, severity, agent, reported ATT&CK mapping and original log, then save a disposition and export the evidence.
+
+```shell
+python server.py --import-wazuh alerts.json
+```
+
+Local integrations can POST an alert or array to `/api/wazuh`. An exporter can also pipe one JSON alert per line to `python server.py --wazuh-stream`. Each streamed line commits before the next is read. Importing an identical manager and alert ID twice preserves the existing case and review. Conflicting content for that identity rejects the batch. Refresh the UI to see newly ingested alerts. Native manager JSON is documented in the [Wazuh alert example](https://documentation.wazuh.com/current/user-manual/capabilities/command-monitoring/command-output-analysis.html).
+
+### Deployment
+
+Single-user, loopback-only service for trusted local processes. A live Wazuh feed requires a manager-side source and transport to the local importer. The AI triage assistant uses a deterministic rule for [AI Agent Tool Invocation](https://atlas.mitre.org/techniques/AML.T0053). It checks whether a sentence cites the relevant completion and mentions a discrepancy. The suggestion requires analyst review.
 
 ```shell
 python -m unittest -v

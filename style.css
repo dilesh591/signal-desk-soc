@@ -88,6 +88,8 @@ textarea { display: block; resize: vertical; margin: 7px 0 10px; line-height: 1.
 a { color: var(--accent); } blockquote { margin: 10px 0; font-style: italic; }
 .history { margin-top: 12px; } .history p { white-space: pre-wrap; }
 .scroll { overflow-x: auto; } table { border-collapse: collapse; width: 100%; font-size: 14px; text-align: left; }
+.raw-log { border: 1px solid var(--border); background: #f5f7f5; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
+@media (max-width: 450px) { .mast-inner { flex-wrap: wrap; } }
 th, td { padding: 12px; border-bottom: 1px solid var(--border); } th { color: var(--muted); background: #f5f7f4; }
 td code { display: block; } .log input { max-width: 250px; }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }

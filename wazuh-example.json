@@ -1,0 +1,10 @@
+{
+  "timestamp":"2026-11-12T10:30:18.000+0000",
+  "id":"1794479418.120001",
+  "manager":{"name":"sample-manager"},
+  "agent":{"id":"001","name":"sample-web-01","ip":"192.0.2.12"},
+  "rule":{"id":"550","level":7,"description":"Integrity checksum changed.","groups":["ossec","syscheck"],"mitre":{"id":["T1565.001"]}},
+  "location":"syscheck",
+  "syscheck":{"path":"/etc/example-app/settings.conf","event":"modified"},
+  "full_log":"File '/etc/example-app/settings.conf' modified. Changed attribute: size. Synthetic example."
+}

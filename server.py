@@ -1,15 +1,18 @@
 """Start the local service or ingest a JSON batch from an audit exporter."""
 import argparse
 import json
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from store import connect, ingest, review, snapshot, suggest
+from wazuh import ingest_wazuh
 
 ROOT = Path(__file__).parent.resolve()
 ASSETS = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
-          "/style.css": ("style.css", "text/css"), "/example.json": ("example.json", "application/json")}
+          "/style.css": ("style.css", "text/css"), "/example.json": ("example.json", "application/json"),
+          "/wazuh-example.json": ("wazuh-example.json", "application/json")}
 
 
 def handler(db):
@@ -51,6 +54,8 @@ def handler(db):
                 if not 0 < length <= 1024 * 1024:
                     return self.reply(413, {"error":"Batch must be 1 byte to 1 MiB"})
                 data = json.loads(self.rfile.read(length))
+                if self.path == "/api/wazuh":
+                    return self.reply(200, ingest_wazuh(db, data))
                 if self.path == "/api/events":
                     return self.reply(200, ingest(db, data))
                 if self.path == "/api/review":
@@ -72,10 +77,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=str(ROOT / "data" / "soc.sqlite3"))
     parser.add_argument("--port", type=int, default=8780)
-    parser.add_argument("--import-events", type=Path)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--import-events", type=Path)
+    mode.add_argument("--import-wazuh", type=Path)
+    mode.add_argument("--wazuh-stream", action="store_true", help="Read one manager alert per line from stdin")
     args = parser.parse_args()
     if args.import_events:
         print(json.dumps(ingest(args.db, json.loads(args.import_events.read_text(encoding="utf-8-sig")))))
+    elif args.import_wazuh:
+        print(json.dumps(ingest_wazuh(args.db, args.import_wazuh.read_text(encoding="utf-8-sig"))))
+    elif args.wazuh_stream:
+        for line in sys.stdin:
+            if line.strip():
+                print(json.dumps(ingest_wazuh(args.db, json.loads(line))), flush=True)
     else:
         connect(args.db).close()
         with ThreadingHTTPServer(("127.0.0.1", args.port), handler(args.db)) as server:
